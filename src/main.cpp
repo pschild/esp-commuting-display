@@ -22,6 +22,7 @@
 
 const String CHIP_ID = String("ESP_") + String(ESP.getChipId());
 
+void updateDisplay();
 void ping();
 void onFooBar(char* payload);
 void onCommutingStateUpdate(char* payload);
@@ -36,7 +37,11 @@ OTAUpdateHandler updateHandler("192.168.178.28:9042", VERSION);
 
 Ticker pingTimer(ping, 60 * 1000);
 
-SSD1306Wire display(0x3c, D5, D4);
+SSD1306Wire display(0x3c, D5, D4); // Params: address, SDA, SCL
+
+String leavingTime = "N/A";
+String arrivalTime = "N/A";
+unsigned long lastUpdate = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -54,17 +59,26 @@ void setup() {
 
   display.init();
   display.flipScreenVertically();
+
+  updateDisplay();
 }
 
-void drawFontFaceDemo() {
+void updateDisplay() {
+  display.clear();
+
   display.setTextAlignment(TEXT_ALIGN_LEFT);
 
   display.setFont(ArialMT_Plain_16);
-  display.drawString(0, 0, "AB 15:33 Uhr");
-  display.drawString(0, 24, "AN 16:30 Uhr");
+  display.drawString(0, 0, "AB " + leavingTime + " Uhr");
+  display.drawString(0, 24, "AN " + arrivalTime + " Uhr");
 
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 50, "aktualisiert vor 10min");
+  if (lastUpdate > 0) {
+    unsigned long diff = (millis() - lastUpdate) / 1000;
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(0, 50, "aktualisiert vor " + String(diff));
+  }
+
+  display.display();
 }
 
 void loop() {
@@ -72,10 +86,6 @@ void loop() {
   updateHandler.loop();
 
   pingTimer.update();
-
-  display.clear();
-  drawFontFaceDemo();
-  display.display();
 }
 
 void ping() {
@@ -92,9 +102,23 @@ void onFooBar(char* payload) {
 }
 
 void onCommutingStateUpdate(char* payload) {
+  if (strcmp(payload, "START") == 0) {
+    leavingTime = "jetzt";
+    arrivalTime = "tbd";
+    lastUpdate = millis();
+  } else {
+    leavingTime = "N/A";
+    arrivalTime = "N/A";
+    lastUpdate = 0;
+  }
+
+  updateDisplay();
 }
 
 void onCommutingDurationUpdate(char* payload) {
+  arrivalTime = String(payload);
+  lastUpdate = millis();
+  updateDisplay();
 }
 
 void onOtaUpdate(char* payload) {
