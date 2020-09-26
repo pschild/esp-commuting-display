@@ -45,9 +45,20 @@ unsigned long lastUpdate = 0;
 
 void setup() {
   Serial.begin(9600);
+
+  display.init();
+  display.flipScreenVertically();
+
+  // display.clear();
+  // display.setTextAlignment(TEXT_ALIGN_LEFT);
+  // display.setFont(ArialMT_Plain_16);
+  // display.drawString(0, 0, "Connecting...");
+  // display.display();
+
   pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
-  
+  // TODO: due to following line, the display won't work
+  // digitalWrite(LED_BUILTIN, HIGH);
+
   wifiHandler.connect();
   mqttHandler.setup();
   mqttHandler.setOnConnectedCallback(onMqttConnected);
@@ -56,11 +67,6 @@ void setup() {
 
   // start OTA update immediately
   updateHandler.startUpdate();
-
-  display.init();
-  display.flipScreenVertically();
-
-  updateDisplay();
 }
 
 void updateDisplay() {
@@ -73,9 +79,9 @@ void updateDisplay() {
   display.drawString(0, 24, "AN " + arrivalTime + " Uhr");
 
   if (lastUpdate > 0) {
-    unsigned long diff = (millis() - lastUpdate) / 1000;
+    unsigned long diff = (millis() - lastUpdate) / 1000 / 60;
     display.setFont(ArialMT_Plain_10);
-    display.drawString(0, 50, "aktualisiert vor " + String(diff));
+    display.drawString(0, 50, "aktualisiert vor " + String(diff) + "min");
   }
 
   display.display();
@@ -86,6 +92,8 @@ void loop() {
   updateHandler.loop();
 
   pingTimer.update();
+
+  updateDisplay();
 }
 
 void ping() {
@@ -111,14 +119,11 @@ void onCommutingStateUpdate(char* payload) {
     arrivalTime = "N/A";
     lastUpdate = 0;
   }
-
-  updateDisplay();
 }
 
 void onCommutingDurationUpdate(char* payload) {
   arrivalTime = String(payload);
   lastUpdate = millis();
-  updateDisplay();
 }
 
 void onOtaUpdate(char* payload) {
