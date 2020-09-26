@@ -39,8 +39,8 @@ Ticker pingTimer(ping, 60 * 1000);
 
 SSD1306Wire display(0x3c, D5, D4); // Params: address, SDA, SCL
 
-String leavingTime = "N/A";
-String arrivalTime = "N/A";
+String leavingTime;
+String arrivalTime;
 unsigned long lastUpdate = 0;
 
 void setup() {
@@ -55,7 +55,7 @@ void setup() {
   // display.drawString(0, 0, "Connecting...");
   // display.display();
 
-  pinMode(LED_BUILTIN, OUTPUT);
+  // pinMode(LED_BUILTIN, OUTPUT);
   // TODO: due to following line, the display won't work
   // digitalWrite(LED_BUILTIN, HIGH);
 
@@ -75,13 +75,23 @@ void updateDisplay() {
   display.setTextAlignment(TEXT_ALIGN_LEFT);
 
   display.setFont(ArialMT_Plain_16);
-  display.drawString(0, 0, "AB " + leavingTime + " Uhr");
-  display.drawString(0, 24, "AN " + arrivalTime + " Uhr");
+
+  if (leavingTime != "") {
+    display.drawString(0, 0, leavingTime);
+  }
+
+  if (arrivalTime != "") {
+    display.drawString(0, 24, arrivalTime);
+  }
 
   if (lastUpdate > 0) {
-    unsigned long diff = (millis() - lastUpdate) / 1000 / 60;
+    unsigned long lastUpdatedMin = (millis() - lastUpdate) / 1000 / 60;
     display.setFont(ArialMT_Plain_10);
-    display.drawString(0, 50, "aktualisiert vor " + String(diff) + "min");
+    display.drawString(0, 50, "aktualisiert vor " + String(lastUpdatedMin) + "min");
+
+    if (lastUpdatedMin > 15) {
+      // TODO: let red LED blink
+    }
   }
 
   display.display();
@@ -109,20 +119,20 @@ void onFooBar(char* payload) {
   }
 }
 
-void onCommutingStateUpdate(char* payload) {
-  if (strcmp(payload, "START") == 0) {
-    leavingTime = "jetzt";
-    arrivalTime = "tbd";
+void onCommutingStateUpdate(char* topic, char* payload) {
+  if (((std::string) topic).find("/start") != std::string::npos) {
+    leavingTime = "AB " + String(payload) + " Uhr";
+    arrivalTime = "";
     lastUpdate = millis();
-  } else {
-    leavingTime = "N/A";
-    arrivalTime = "N/A";
+  } else if (((std::string) topic).find("/end") != std::string::npos) {
+    leavingTime = "";
+    arrivalTime = "";
     lastUpdate = 0;
   }
 }
 
 void onCommutingDurationUpdate(char* payload) {
-  arrivalTime = String(payload);
+  arrivalTime = "AN " + String(payload) + " Uhr";
   lastUpdate = millis();
 }
 
@@ -131,20 +141,20 @@ void onOtaUpdate(char* payload) {
 }
 
 void onMqttConnected() {
-  mqttHandler.subscribe("adesso-commuter-server/commuting/status");
-  mqttHandler.subscribe("adesso-commuter-server/commuting/duration");
+  mqttHandler.subscribe("adesso-commuter-server/commuting/status/+");
+  mqttHandler.subscribe("adesso-commuter-server/commuting/duration/eta");
   mqttHandler.subscribe("foo/+/baz");
   mqttHandler.subscribe("otaUpdate/all");
 }
 
 void onMqttMessage(char* topic, char* message) {
-  if (((std::string) topic).rfind("foo/", 0) == 0) {
+  if (((std::string) topic).find("foo/") != std::string::npos) {
     onFooBar(message);
   } else if (strcmp(topic, "otaUpdate/all") == 0) {
     onOtaUpdate(message);
-  } else if (strcmp(topic, "adesso-commuter-server/commuting/status") == 0) {
-    onCommutingStateUpdate(message);
-  } else if (strcmp(topic, "adesso-commuter-server/commuting/duration") == 0) {
+  } else if (((std::string) topic).find("adesso-commuter-server/commuting/status/") != std::string::npos) {
+    onCommutingStateUpdate(topic, message);
+  } else if (strcmp(topic, "adesso-commuter-server/commuting/duration/eta") == 0) {
     onCommutingDurationUpdate(message);
   }
 }
